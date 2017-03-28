@@ -1,0 +1,41 @@
+//ajax上传
+ 	$(function(){
+ 		$("#startUpload").click(function(){
+ 			if($("#fileToUpload").val().length > 0){
+ 				console.log($("#fileToUpload").val().length);
+ 				ajaxFileUpload();
+ 			}
+ 			else if($("#fileToUpload").val().length > 50000000){
+ 				alert("请选择小于47M的文件");
+ 			}
+ 			else{
+ 				alert("请选择文件");
+ 			}
+ 		})
+ 	})
+ 	function ajaxFileUpload(){
+ 		$.ajaxFileUpload({
+ 			url:'../rjnl/library/upload',
+ 			secureuri: false,
+ 			fileElementId:'fileToUpload',
+ 			data: {                    
+ 		        'name': $("#name").val(),
+ 		        'remark':$("#remark").val(),
+ 		        'itemType':$("#itemType").val(),
+ 		        'owner':$("#owner").val()
+ 		    },
+ 			dataType:'JSON',
+ 			success:function(data){
+ 				alert($(data).text());
+ 				//
+ 				$("#name").val("");
+ 				$("#remark").val("");
+ 				$("#itemType").val("");
+ 				$("#owner").val("");
+ 			},
+ 			error:function(){
+ 				alert("error");
+ 			}
+ 			
+ 		});
+ 	}
