@@ -1,0 +1,269 @@
+Spring 工程单元测试
+
+    我们的web工程的框架是springMVC+mybatis，想做单元测试。细分一下可以有3个部分可以做测试。一个是Controller层，一个是普通的通用函数，如Utils之类，一个是DAO层。Utils层是非常好测试的，就是普通的函数而已，没有复杂的依赖，Junit4即可应用。但是controller层是依赖web容器，mybatis依赖DB，如果要用自己手工mock，工作量太多，且不一定有效。经过查找，决定用spring-test框架来测试Controller层，unitils + dbunit来测试DAO层。
+
+1. spring-test.
+
+    引入spring-test框架。
+
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-test</artifactId>
+    <version>${project.spring.version}</version>
+</dependency>
+
+
+规划测试目录结构：
+源代码的目录结构如下：
+
+其中测试目录下面的配置文件会覆盖src目录下面的配置文件。因为我们src的目录的applicationContext.xml Beanfactory 和 spring-mvc.xml beanfactory设计的是上下级父子关系，所以我们改写了为applicationContext-test.xml让 Mvc工厂也被加入到父工厂里面。
+这样，我们需要一个基类：
+-java代码
+import org.junit.Before;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.MethodSorters;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@WebAppConfiguration
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@ContextConfiguration({"/applicationContext-test.xml"})
+public class TestBaseController {
+    @Autowired
+    private WebApplicationContext wac;
+    public MockMvc mockMvc;
+
+    @Before
+    public void setup() {
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
+    }
+
+    @Test
+    public void testExmaple(){
+    }
+
+}
+
+然后测试这个controller:
+
+测试类像以下这样写：
+-java代码
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import static org.junit.Assert.*;
+
+import java.util.List;
+
+import org.junit.Test;
+
+import org.springframework.test.web.servlet.MvcResult;
+
+import org.springframework.test.web.servlet.ResultActions;
+
+import com.google.gson.Gson;
+
+import com.huawei.dc.repo.dataobject.JobExecHistoryDO;
+
+import com.huawei.dc.repo.viewobject.ResultVO;
+
+public class TestJobHistoryController extends TestBaseController{
+
+        @Test
+        public void testJobHistoryRestApi() throws Exception {
+          ResultActions actions = mockMvc.perform(get("/v1/devreposerver/jobhistory/query2").param("id", "33")
+                  .param("name", "wjj1234").header("X-Auth-Token", "XXX"))
+                  .andDo(print())
+                  .andExpect(status().isOk())
+                  .andExpect(content().json("{\"code\":23,\"message\":\"Parameter 'host': may not be empty\",\"result\":null}"));
+        }
+         
+        @Test
+        public void testJobHistoryRestApi2() throws Exception {
+          ResultActions actions = mockMvc.perform(get("/v1/devreposerver/jobhistory/query2").param("host", "szxy8lwx1758761")
+                  .param("createdDate", "2017").header("X-Auth-Token", "XXX"))
+                  .andDo(print())
+                  .andExpect(status().isOk())
+                  .andExpect(content().json("{\"code\":10001,\"message\":\"Parameter 'createdDate': Invalid datatime format.\",\"result\":null}"));
+        }
+
+        @Test
+        public void testJobHistoryRestApi3() throws Exception {
+          ResultActions actions = mockMvc.perform(get("/v1/devreposerver/jobhistory/query2").param("host", "szxy8lwx1758761")
+                  .param("createdDate", "2017-03-20 14:39:26").header("X-Auth-Token", "XXX"))
+                  .andDo(print())
+                  .andExpect(status().isOk())
+                  .andExpect(content().json("{\"code\":0,\"message\":\"Query last 100 items success.\"}"));
+
+                MvcResult result = actions.andReturn();
+                String str = result.getResponse().getContentAsString();
+                Gson gson = new Gson();
+                ResultVO<List<JobExecHistoryDO>> vo =  gson.fromJson(str, ResultVO.class);
+                assertNotNull(vo);
+                assertTrue(vo.getResult().size() > 2);
+        }
+}
+
+这几个测试用例，填写了x-auth-token字段，是为了通过Inteceptor的。填写的参数，是为了获取验证结果的。如果rest api的参数不对，就会返回错误码和错误信息，进行assert了。
+下面我们要讲一下unitils + dbunit.
+
+-xml代码
+<dependency>
+           <groupId>org.unitils</groupId>
+           <artifactId>unitils-dbunit</artifactId>
+           <version>${project.unitils.version}</version>
+           <scope>test</scope>
+       </dependency>
+       <dependency>
+           <groupId>org.unitils</groupId>
+           <artifactId>unitils-database</artifactId>
+           <version>${project.unitils.version}</version>
+           <scope>test</scope>
+       </dependency>
+       <dependency>
+           <groupId>org.unitils</groupId>
+           <artifactId>unitils-spring</artifactId>
+           <version>${project.unitils.version}</version>
+           <scope>test</scope>
+           <exclusions>
+               <exclusion>
+                   <groupId>org.springframework</groupId>
+                   <artifactId>spring-core</artifactId>
+               </exclusion>
+               <exclusion>
+                   <groupId>org.springframework</groupId>
+                   <artifactId>spring-context</artifactId>
+               </exclusion>
+               <exclusion>
+                   <groupId>org.springframework</groupId>
+                   <artifactId>spring-beans</artifactId>
+               </exclusion>
+           </exclusions>
+       </dependency>
+
+
+然后填写unitils.properties.
+-perl代码
+#modules included
+unitils.modules=database,dbunit,spring
+org.dbunit.database.IMetadataHandler.implClassName=org.dbunit.ext.mysql.MySqlMetadataHandler
+database.driverClassName=com.mysql.jdbc.Driver
+database.url=jdbc:mysql://10.21.226.114:3306/test?autoReconnect=true&useUnicode=true&characterEncoding=utf-8
+database.userName=123
+database.password=password
+database.schemaNames=test
+database.dialect=mysql
+DbUnitModule.DataSet.loadStrategy.default=org.unitils.dbunit.datasetloadstrategy.impl.CleanInsertLoadStrategy
+DatabaseModule.Transactional.value.default=rollback
+
+这个文件主要是预备填充数据库的驱动配置也一些策略等。主要数据库必须是单独一个测试数据库，千万不要和开发和生产的数据库混为一谈，避免威胁到真实数据。
+
+修改关于数据库的配置，配置到测试数据库。
+
+测试基类：
+
+-java代码
+
+import org.apache.log4j.Logger;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.unitils.UnitilsJUnit4;
+import org.unitils.dbunit.annotation.DataSet;
+import org.unitils.spring.annotation.SpringApplicationContext;
+ 
+@SpringApplicationContext({"spring-datasource-test.xml","spring-mybatis.xml"})
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@DataSet("cleanAll.xml")
+public class BaseDaoTest extends UnitilsJUnit4{
+    private static final Logger logger = Logger.getLogger(BaseDaoTest.class);
+
+    @Test
+    public void zzzzzzz(){
+    }
+
+}
+
+
+测试具体类如下：
+
+代码如下：
+
+-java代码
+
+import static org.junit.Assert.fail;
+
+import java.sql.SQLException;
+
+import org.apache.log4j.Logger;
+import org.junit.Before;
+import org.junit.Test;
+import org.unitils.dbunit.annotation.DataSet;
+import org.unitils.spring.annotation.SpringBeanByType;
+
+import com.huawei.DevRepoServer.domain.Repository;
+import com.huawei.dc.repo.dao.BaseDaoTest;
+
+public class IInsertDaoTest extends BaseDaoTest{
+
+    private static final Logger logger = Logger.getLogger(IInsertDaoTest.class);
+
+    @SpringBeanByType
+    private IInsertDao insertDao ;
+    @Before
+    public void init(){
+        logger.info("before .....");
+    }
+
+    @Test
+    @DataSet("testRepository/repository1.xml")
+    public void testAddRepository() throws SQLException {
+        Repository one = new Repository();
+        one.setName("wjj_repository_test");
+        one.setCreatorId("w00383265");
+        one.setDomainId("abcdefg");
+        one.setCreatedTime("2017-03-28 12:00:09");
+        one.setType("release");
+        one.setDescription("wjj private repository desc");
+        one.setLocalType("hosted");
+        one.setRepoIndex("abcdefg_1_0");
+        one.setRepoPolicy("RELEASE");
+        one.setRepoUserName("wjj");
+        one.setRepoPassword("123");
+        one.setPackageType("maven");
+        insertDao.addRepository(one);
+        logger.info("testAddRepository over .....");
+    }
+    @Test
+    public void testAddRepositoryAndGroupRelation() {
+    }
+
+    @Test
+
+    public void testAddDomainStorage() {
+
+    }
+
+    @Test
+    public void testAddCustomerData() {
+
+    }
+
+}
+
+
+最后，我们eclipse再装一个eclemma，就可以看测试覆盖率了！
