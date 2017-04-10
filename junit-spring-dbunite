@@ -267,3 +267,29 @@ public class IInsertDaoTest extends BaseDaoTest{
 
 
 最后，我们eclipse再装一个eclemma，就可以看测试覆盖率了！
+
+补充：
+mock需要对某些方法添加返回值，否则调用这些方法时不进行任何操作。
+如果一个方法中用到了某些特殊的操作并且没有返回值，那么可以利用Answer类进行这些特殊的操作
+下面是对一个void方法进行了mock操作
+API：doAnswer(new Answer(){}).when(mock).doSomeThing();
+doAnswer(new Answer(){
+
+                @Override
+                public Object answer(InvocationOnMock invocation) throws Throwable
+                {
+                    Method method = invocation.getMethod();
+                    if(method.getName().equalsIgnoreCase("transferTo"))
+                    {
+                        File uploadFileTemp = (File)invocation.getArguments()[0];
+                        File source = new File("src/test/resources/excel/importtest.xlsx");
+                        FileUtils.copyFile(source, uploadFileTemp);
+                        System.out.println(uploadFileTemp.exists());
+                    }
+                    return null;
+                }
+                
+        }).when(file).transferTo(any(File.class));
+        这个模仿中，是对CommonsMultipartFile.transfTo(file)，的模仿。由于我这里的操作用到了这个复制到的新文件，
+    并且由于新文件的名称是随机的，所以这样操作自己进行了文件的复制，也就使得下面的操作可以顺利的进行下去。
+
