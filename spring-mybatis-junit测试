@@ -1,0 +1,30 @@
+applicationContext.xml中需要配置
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+其中bean 的id必须为transactionManager，这个会在spring的测试类中自动回滚中使用到。
+可以写一个TestBaseDao作为其他dao的测试父类，
+
+@ContextConfiguration(locations={"/spring/spring-test.xml"})
+public class BaseDAOTest extends AbstractTransactionalJUnit4SpringContextTests
+{
+    
+}
+
+子类
+
+public class AccountDAOTest extends BaseDAOTest
+{
+    @Autowired
+    AccountDAO accountDAO;
+    
+    @Test
+    public void testDeleteByPrimaryKey()
+    {
+        Account account = new Account();
+        account.setId(1);
+        int i = accountDAO.deleteByPrimaryKey(account);
+        assertEquals(1,i);
+    }
+}
+这样就可以测试dao层 自动回滚，而不用担心对原有数据库的影响了。
