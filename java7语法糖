@@ -1,0 +1,40 @@
+1、二进制优化
+    eg: 旧：int x = Integer.parseInt("1010110",2);
+        新: int x = 0b1010110;
+        
+2、多重catch优化
+    为了把相同类型的异常放在一块，比较直观。例如把同样是文件处理的异常放在一起
+    eg: try{
+        }catch(FileNotFoundException | ParseException e){
+            ...
+        }
+
+3、final重抛
+    解决某些场景下用高等级的异常接收异常会覆盖原有异常信息。
+    eg: try{
+        }catch(final FileNotFoundException e){
+            throw new Exception(e);
+        }
+        这里异常信息是原始异常信息e.
+
+4、钻石语法
+    省时省力
+    eg: Map<String,List<Map<String,Object>>> map = new HashMap<>();
+    
+5、try-with-resource。对资源处理会自动关闭
+    eg: File file = new File("src/cc/kotori/TryWithResource.java");
+        String len = null;
+        try(BufferedReader is = new BufferedReader(new FileReader(file)))
+        {
+            while((len = is.readLine())!=null)
+            {
+                System.out.println(len);
+            }
+        }
+        catch(Exception e)
+        {
+            StackTraceElement[] st = e.getStackTrace();
+            System.out.println("Class:"+st[0].getClassName());
+            System.out.println("LineNumber"+st[0].getLineNumber());
+            System.out.println("Method"+st[0].getMethodName());
+        }
