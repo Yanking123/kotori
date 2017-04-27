@@ -76,4 +76,47 @@ eg:
 
       }
   
-三、
+三、NIO.2的文件系统IO
+文件处理的基础类：
+  Files : 轻松复制、移动、删除或处理文件的工具类。
+  WatchService : 用来监视文件或目录的核心类，他们有没有变化。
+可以处理的任务： 创建和删除文件；
+                移动、复制、重命名、删除文件；
+                文件属性的读写；
+                文件内容的读写；
+                处理Link文件；
+                用WatchService发出文件修改通知；
+                使用一个可以指定位置和大小的增强型字节通道-SeekableByteChannel
+   nio的关于文件系统处理的方法，某些时候还是会跑出RuntimeException;例如系统突然死掉等突发情况，这时候代码中可以使用Files.exists(Path),来
+处理相关情况
+
+1、创建、删除文件。
+    POSIX是一种通用的文件系统标准，许多系统都支持它。
+eg:     Path txtPath = Paths.get("f:\\Kotori\\nio\\file.txt");
+        //文件存在则删除
+        Files.deleteIfExists(txtPath);
+        //文件权限的列表
+        Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rw-rw-rw-");
+        /**
+         *  这里的权限列表，也可以通过PosixFilePermissions.OWNER_READ常亮的方式添加进去。
+         *  主要有..OWNER_..; GROUP_ ; OTHERS_共计9中权限设置。
+         */
+        //将文件权限的列表添加到文件属性的集合中
+        FileAttribute<Set<PosixFilePermission>> attrs = PosixFilePermissions.asFileAttribute(perms);
+        //创建了一个设置了权限的文件
+        Files.createFile(txtPath, attrs);//可选项，这里添加了权限。
+	2、复制和移动
+  eg. @Test
+    public void test5() throws Exception
+    {
+        Path source = Paths.get("f:/Korori/nio/file.txt");
+        Path target = Paths.get("f:/Korori/nio/file2.txt");
+        //复制操作。后面3个表示复制时的选项。
+        //COPY_ATTRIBUTES 拷贝文件属性
+        //REPLACE_EXISTING 覆盖目标文件
+        //ATOMIC_MOVE  确保两边都成功，否则回滚操作
+        Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        //Files.move(source, target, StandardCopyOption... options);
+    }
+    
+3、文件属性
