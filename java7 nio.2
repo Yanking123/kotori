@@ -4,6 +4,7 @@
          Paths:工具类。get()获取一个路径
          FileSystem:与文件系统交互的类
          FileSystems:工具类
+         nio.2的文件api中大部分会默认跟随符号连接。如果不跟踪，则需要参数LinkOption.NOFOLLOW_LINKS
 eg:
         Path path = Paths.get("f:/Kotori/godev/src");//获取路径
 //        FileSystems.getDefault().getPath("f:/Kotori/godev/src/hello.go");
@@ -105,7 +106,8 @@ eg:     Path txtPath = Paths.get("f:\\Kotori\\nio\\file.txt");
         FileAttribute<Set<PosixFilePermission>> attrs = PosixFilePermissions.asFileAttribute(perms);
         //创建了一个设置了权限的文件
         Files.createFile(txtPath, attrs);//可选项，这里添加了权限。
-	2、复制和移动
+        
+2、复制和移动
   eg. @Test
     public void test5() throws Exception
     {
@@ -120,3 +122,90 @@ eg:     Path txtPath = Paths.get("f:\\Kotori\\nio\\file.txt");
     }
     
 3、文件属性
+（1）.不同文件系统通用的文件属性
+eg:	//通用的文件属性查看
+        Files.getLastModifiedTime(source);
+        Files.getOwner(source);
+        Files.isSymbolicLink(source);//是否是符号连接
+        Files.size(source);
+（2）.特定文件属性的支持
+	  Files.readAttributes(path, PosixFilePermission.class);//读取文件权限属性
+    Files.readAttributes(path, BasicFileAttributes.class);//读取文件基础属性
+    newPath = Files.readSymbolicLink(path);//跟随符号连接到目标地点
+    
+4、快速读写数据
+  新的api方法也可以与那些java.io包中基于流的类进行相互的操作。
+  Files.newBufferedReader()
+  eg:
+  @Test
+    public void test7() throws Exception
+    {
+        Path source = Paths.get("f:/Kotori/nio/file.txt");
+        /**************************nio2与io的文件输入输入流*********************************/
+//        Files.newInputStream(path, options)
+//        Files.newOutputStream(path, options)
+        try(BufferedReader reader = Files.newBufferedReader(source, StandardCharsets.UTF_8)){
+            String line = null;
+            //这里还是老旧的io操作
+            while((line = reader.readLine())!= null){
+            }
+        }
+        catch(IOException e){
+        }
+        Path target = Paths.get("f:/Kotori/nio/newFileWriter.txt");
+        try(BufferedWriter bw = Files.newBufferedWriter(target, StandardCharsets.UTF_8, StandardOpenOption.APPEND))
+        {
+            //StandardOpenOption.APPEND表示连接参数，这里是追加写入
+        }
+        catch(IOException e){
+        }
+        //以上操作在打开文件时用的是nio的新api但是实际操作中用的还是旧的
+        /*****************************较为方便的文件读取************************************/
+        List<String> readAllLines = Files.readAllLines(Paths.get("src/cc/kotori/PathLearn1.java"), StandardCharsets.UTF_8);
+//        Files.readAllBytes(target);
+        for(String x : readAllLines)
+        {
+            System.out.println(x);
+        }
+        if(!Files.exists(target))
+        {
+            Files.createFile(target);
+        }
+        //更为方便的写文件。
+//        Files.write(target, bytes, options);
+        Files.write(target, readAllLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+    }
+    
+5、文件修改通知
+  通过使用java.nio.file.WatchService来监控文件是否发生改变，可以用在应用程序中配置文件或者其他特殊文件被修改。相比于轮询机制会好很多。
+若被监视的文件发生了改变就会返回一个事件。
+eg: @Test
+    public void test8() throws Exception
+    {
+        //监视是监视单级文件夹
+        Path watchPath = FileSystems.getDefault().getPath("f:/Kotori/nio");
+        //创建文件监视服务
+        WatchService watchService = FileSystems.getDefault().newWatchService();
+        //注册监视的文件事件：StandardWatchEventKinds.OVERFLOW（不跟踪，事件被销毁了）
+        //ENTRY_DELETE（文件被删除）
+        //ENTRY_CREATE（文件被创建）
+        watchPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+        WatchKey key = watchPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+        while(true)
+        {
+            key = watchService.take();
+            List<WatchEvent<?>> enventList = key.pollEvents();
+            for(WatchEvent<?> e : enventList)
+            {
+                if(StandardWatchEventKinds.ENTRY_MODIFY.equals((e.kind()))){
+                    System.out.println(watchPath.getFileName()+ "被修改了");
+                    continue;
+                }
+            }
+            //重置监视指针
+            key.reset();
+        }
+    }
+    
+6、SeekableByteChannel
+能够改变
