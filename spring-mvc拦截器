@@ -1,3 +1,18 @@
+<!-- 定义拦截器 -->
+    <mvc:interceptors>
+        <mvc:interceptor>
+        <mvc:mapping path="/*.action" />
+        <mvc:mapping path="/*.jsp" />
+        <mvc:mapping path="/*.html" />
+        <mvc:mapping path="/*.htm" />
+        <mvc:exclude-mapping path="/login.jsp"/>
+        <mvc:exclude-mapping path="/register.jsp"/>
+        <mvc:exclude-mapping path="/about.jsp"/>
+        <bean class="com.course.interceptor.IdentityInterceptor"></bean>
+        </mvc:interceptor>
+    </mvc:interceptors>
+
+
 /**
  *身份认证拦截器
  *@author 王旭
