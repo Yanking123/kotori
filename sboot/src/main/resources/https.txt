@@ -1,0 +1,22 @@
+生成证书
+keytool -genkey -alias kotori -keyalg RSA
+结果为.keystore
+
+
+server.port=8443  //1
+#server.session.timeout=
+#server.context-path=
+
+server.tomcat.uri-encoding=UTF-8
+#server.tomcat.compression= #新版已经没有了
+
+server.ssl.key-store=.keystore  //2
+server.ssl.key-store-password=zsefv123 //3
+server.ssl.key-store-type=JKS   //4
+server.ssl.key-alias=kotori  //5
+
+1：指定监听端口 
+2：ssl存储的文件名 
+3：证书密码 
+4：证书类型 
+5：证书别名
