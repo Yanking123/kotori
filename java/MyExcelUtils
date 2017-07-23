@@ -1,0 +1,234 @@
+public class ExcelUtils
+{
+    private static final Logger logger = Logger.getLogger(ExcelUtils.class);
+
+    /**
+     * 读excel文件，保存在List<List<String>>中
+     * @para filePath excel文件路径
+     * @param sheetNameStr 想要读取sheet名；null不指定，读取第一个工作表
+     * @return 不同sheet页的数据集合
+     */
+    public static List<List<String>> getAllDatas(String filePath, String sheetNameStr)
+    {
+        if (null == filePath)
+        {
+            logger.error("excel file path is wrong!");
+            return null;
+        }
+
+        File file = new File(filePath);
+
+        if (!file.exists())
+        {
+            return null;
+        }
+
+        FileInputStream in = null;
+        Workbook workbook = null;
+        
+        try
+        {
+            in = new FileInputStream(file);
+        }
+        catch(FileNotFoundException e)
+        {
+            logger.error(ExceptionUtil.printExceptionInfo(e));
+            return null;
+        }
+        
+        workbook = getWorkBook(in);
+        if(null == workbook)
+        {
+            logger.error("error in create workbook,fileName :"+file.getName());
+            return null;
+        }
+        
+        Sheet sheet = null;
+        //未指定sheet，读取第一个
+        if(null == sheetNameStr)
+        {
+            sheet = workbook.getSheetAt(0);
+        }
+        
+        //遍历sheet页
+        int allSheetCount = workbook.getNumberOfSheets();
+        for (int i = 0; i <= allSheetCount; i++)
+        {
+            sheet = workbook.getSheetAt(i);
+            String sheetName = sheet.getSheetName();
+            //这样的处理可以减少因为sheet名有前后字符的影响
+            if (sheetName.contains(sheetNameStr))
+            {
+                //不是当前要读取的sheet
+                break;
+            }
+        }
+        
+        List<List<String>> sheetList = new ArrayList<List<String>>();
+        //遍历excel行数
+        int lastRowNum = sheet.getLastRowNum();
+        for (int rowNum = 0; rowNum < lastRowNum; rowNum++)
+        {
+            List<String> rowValueList = new ArrayList<String>();
+            Row row = sheet.getRow(rowNum);
+            if (row == null)
+            {
+                continue;
+            }
+            if (null == row.getCell(0))
+            {
+                continue;
+            }
+            // 遍历当前行的列数
+            short lastCellNum = row.getLastCellNum();
+            for (int cellNum = 0; cellNum < lastCellNum; cellNum++)
+            {
+                Cell cell = row.getCell(cellNum);
+                String value = null;
+                if (cell == null)
+                {
+                    value = "";
+                }
+                else
+                {
+                    //获取当前单元格的值
+                    value = getMergedCellValue(sheet, rowNum, cellNum);
+                }
+                rowValueList.add(value.replace("\n", "").trim());
+            }
+            sheetList.add(rowValueList);
+        }
+        
+        if(null != workbook)
+        {
+            try
+            {
+                workbook.close();
+            }
+            catch (IOException e)
+            {
+                logger.error(ExceptionUtil.printExceptionInfo(e));
+            }
+        }
+        
+        if(null != in)
+        {
+            try
+            {
+                in.close();
+            }
+            catch (IOException e)
+            {
+                logger.error(ExceptionUtil.printExceptionInfo(e));
+            }
+        }
+
+        return sheetList;
+    }
+
+    /**
+     * 获取单元格的值
+     * @param sheet  当前sheet页     
+     * @param row   行数       
+     * @param column   列数        
+     * @return
+     */
+    public static String getMergedCellValue(Sheet sheet, int row, int column)
+    {
+        int sheetMergeCount = sheet.getNumMergedRegions();
+        for (int i = 0; i < sheetMergeCount; i++)
+        {
+            //处理合并的单元格
+            CellRangeAddress ca = sheet.getMergedRegion(i);
+            if (null == ca)
+            {
+                continue;
+            }
+
+            int firstColumn = ca.getFirstColumn();
+            int lastColumn = ca.getLastColumn();
+            int firstRow = ca.getFirstRow();
+            int lastRow = ca.getLastRow();
+            if (row >= firstRow && row <= lastRow)
+            {
+                if (column >= firstColumn && column <= lastColumn)
+                {
+                    Row fRow = sheet.getRow(firstRow);
+                    Cell fCell = fRow.getCell(firstColumn);
+                    return getCellValue(fCell).toString();
+                }
+            }
+        }
+        return String.valueOf(getCellValue(sheet.getRow(row).getCell(column)));
+    }
+
+    /**
+     * 根据当前单元格的数据类型返回对应的值
+     * @param cell 单元格
+     * @return
+     */
+    private static Object getCellValue(Cell cell)
+    {
+        switch (cell.getCellType())
+        {
+        case Cell.CELL_TYPE_STRING:
+            return cell.getRichStringCellValue().getString();
+        case Cell.CELL_TYPE_NUMERIC:
+            if (DateUtil.isCellDateFormatted(cell))
+            {
+                return cell.getDateCellValue();
+            }
+            else
+            {
+                return (long) cell.getNumericCellValue();
+            }
+        case Cell.CELL_TYPE_BOOLEAN:
+            return cell.getBooleanCellValue();
+        case Cell.CELL_TYPE_FORMULA:
+            return cell.getCellFormula();
+        default:
+            return "";
+        }
+    }
+    
+    /**
+     * 用于获取工作簿对象Workbook
+     * @param in excel的字节输入流
+     * @return workbook 工作簿对象
+     */
+    public static Workbook getWorkBook(InputStream in)
+    {
+        Workbook workbook = null;
+        
+        if(null == in)
+        {
+            return null;
+        }
+        
+        if(! in.markSupported()) 
+        {
+            //读取前8个字节，判断表头类型
+            in = new PushbackInputStream(in, 8);
+        }
+
+        try
+        {
+            if(POIFSFileSystem.hasPOIFSHeader(in)) 
+            {
+                //2003及以下
+                workbook = new HSSFWorkbook(in);
+            }
+            else if(POIXMLDocument.hasOOXMLHeader(in))
+            {
+                //2007及以上
+                workbook = new XSSFWorkbook(in);
+            }
+        }
+        catch (IOException e)
+        {
+            logger.error(ExceptionUtil.printExceptionInfo(e));
+        }
+        
+        return workbook;
+    }
+}
